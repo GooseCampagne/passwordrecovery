@@ -4,6 +4,7 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
 
 const app = express();
 const port = 5000;
@@ -34,7 +35,11 @@ const generateUniqueCode = () => {
   return crypto.randomBytes(6).toString('hex').toUpperCase(); 
 };
 
-app.post('/login', (req, res) => {
+const generateToken = (userId) => {
+  return jwt.sign({ userId }, 'tu_clave_secreta', { expiresIn: '1h' });
+};
+
+const authMiddleware = (req, res, next) => {
   const { correo, contrasena } = req.body;
   const query = `SELECT * FROM usuarios WHERE correo = ? AND contrasena = ?`;
   db.query(query, [correo, contrasena], (err, result) => {
@@ -43,12 +48,18 @@ app.post('/login', (req, res) => {
       return;
     }
     if (result.length > 0) {
-      res.status(200).send('Inicio de sesión exitoso');
+      req.token = generateToken(result[0].id);
+      next();
     } else {
       res.status(401).send('Credenciales incorrectas');
     }
   });
+};
+
+app.post('/login', authMiddleware, (req, res) => {
+  res.status(200).send('Inicio de sesión exitoso');
 });
+
 
 app.post('/reset-password', (req, res) => {
   const { correo } = req.body;
